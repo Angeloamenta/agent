@@ -1,0 +1,44 @@
+{
+  "name": "payload-content-engine",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "cross-env NODE_OPTIONS=--no-deprecation next dev",
+    "build": "cross-env NODE_OPTIONS=--no-deprecation next build && npm run build:scripts",
+    "build:scripts": "tsc -p tsconfig.scripts.json",
+    "start": "cross-env NODE_OPTIONS=--no-deprecation next start",
+    "worker": "npm run build:scripts && node dist/worker.js",
+    "trigger:pipeline": "npm run build:scripts && node dist/trigger-pipeline.js",
+    "generate:types": "cross-env NODE_OPTIONS=--no-deprecation payload generate:types",
+    "generate:importmap": "cross-env NODE_OPTIONS=--no-deprecation payload generate:importmap",
+    "migrate": "cross-env NODE_OPTIONS=--no-deprecation payload migrate",
+    "lint": "cross-env NODE_OPTIONS=--no-deprecation next lint"
+  },
+  "dependencies": {
+    "@payloadcms/db-postgres": "^3.0.0",
+    "@payloadcms/next": "^3.0.0",
+    "@payloadcms/richtext-lexical": "^3.0.0",
+    "@payloadcms/ui": "^3.0.0",
+    "@google/generative-ai": "^0.24.0",
+    "cheerio": "^1.0.0",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.7",
+    "fast-xml-parser": "^4.5.3",
+    "next": "15.4.11",
+    "openai": "^4.86.1",
+    "payload": "^3.0.0",
+    "react": "19.2.1",
+    "react-dom": "19.2.1",
+    "rss-parser": "^3.13.0",
+    "slugify": "^1.6.6",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.19.9",
+    "typescript": "5.7.3"
+  },
+  "engines": {
+    "node": ">=20.9.0"
+  }
+}

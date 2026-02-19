@@ -1,0 +1,78 @@
+services:
+  - type: web
+    name: payload-content-engine-web
+    env: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: PAYLOAD_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: CRON_SECRET
+        sync: false
+      - key: PIPELINE_MIN_HOURS
+        value: 48
+      - key: PIPELINE_MAX_HOURS
+        value: 72
+      - key: AUTO_PUBLISH
+        value: "false"
+
+  - type: worker
+    name: payload-content-engine-worker
+    env: node
+    plan: starter
+    buildCommand: npm ci && npm run build
+    startCommand: npm run worker
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: PAYLOAD_SECRET
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: CRON_SECRET
+        sync: false
+      - key: PIPELINE_MIN_HOURS
+        value: 48
+      - key: PIPELINE_MAX_HOURS
+        value: 72
+      - key: AUTO_PUBLISH
+        value: "false"
+      - key: WORKER_QUEUE
+        value: pipeline
+      - key: WORKER_LIMIT
+        value: 5
+      - key: WORKER_POLL_MS
+        value: 3000
+
+  - type: cron
+    name: payload-content-engine-cron
+    env: node
+    schedule: "0 9 * * *"
+    buildCommand: npm ci && npm run build
+    command: npm run trigger:pipeline
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PIPELINE_TRIGGER_URL
+        sync: false
+      - key: CRON_SECRET
+        sync: false
