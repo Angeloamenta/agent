@@ -1,152 +1,53 @@
-# Payload Content Engine (Node + TS + Payload + Postgres)
+# Payload Content Engine
 
-Mini “content engine” con 3 agenti AI orchestrati (scraper → writer → publisher) su Payload CMS, con worker separato per Jobs Queue e deploy-ready su Render.
+Content pipeline su Payload CMS (scrape -> draft con LLM -> post). In locale servono 2 processi: web + worker.
 
-## Requisiti
+## Prerequisiti
 
-- Node 20.9+
-- Postgres disponibile (locale o hosted)
+- Node >= 20.9
+- Postgres (es. Neon)
 
-## Setup locale
-
-1) Installa dipendenze
+## Quickstart locale
 
 ```bash
 npm install
+cp .env.example .env.local
 ```
 
-Se npm segnala conflitti peer deps (capita con alcuni setup), usa:
+Compila almeno in `.env.local`:
 
-```bash
-npm install --legacy-peer-deps
-```
-
-2) Configura env
-
-```bash
-cp .env.example .env
-```
-
-Compila almeno:
-
-- `DATABASE_URL` (se usi Neon/Supabase/etc, assicurati che includa SSL se richiesto)
+- `DATABASE_URL`
 - `PAYLOAD_SECRET`
 - `CRON_SECRET`
+- LLM: `LLM_PROVIDER=gemini` + `GEMINI_API_KEY` (consigliato) e `GEMINI_MODEL=gemini-2.0-flash`
 
-Per LLM (scegline uno):
-
-- Gemini (default): `LLM_PROVIDER=gemini` + `GEMINI_API_KEY`
-- OpenAI (opzionale): `LLM_PROVIDER=openai` + `OPENAI_API_KEY`
-
-3) Avvia Payload (web)
+Avvio (2 terminali):
 
 ```bash
 npm run dev
 ```
 
-Apri `http://localhost:3000/admin` e crea il primo utente.
-
-4) Avvia il worker (processa la queue)
-
-In un altro terminale:
-
 ```bash
 npm run worker
 ```
 
-5) Trigger manuale pipeline
+Poi trigger (terzo terminale):
 
 ```bash
 npm run trigger:pipeline
 ```
 
-Oppure via curl:
+Admin: `http://localhost:3000/admin`
 
-```bash
-curl -X POST "http://localhost:3000/api/internal/run-pipeline" \
-  -H "x-cron-secret: $CRON_SECRET"
-```
+## Cosa aspettarsi
 
-La route **enqueue** un job `runPipeline` nella queue `pipeline`. Il lavoro pesante gira nel worker.
+- `sources`: record creati/aggiornati dallo scraper
+- `drafts`: creati dal writer (status `ready`)
+- `posts`: creati dal publisher (con `AUTO_PUBLISH=false` rimangono `status=draft`)
+- `automationRuns`: audit di ogni run con `stats`
 
-## API per il frontend
+## Troubleshooting (solo il necessario)
 
-I post pubblicati sono leggibili pubblicamente (gli altri contenuti sono admin-only).
-
-Esempio REST:
-
-```text
-/api/posts?where[status][equals]=published&sort=-publishedAt&limit=10&page=1
-```
-
-Payload gestisce pagination/sort/filter nativamente.
-
-## Pipeline (Jobs Queue)
-
-Workflow: `runPipeline` (queue: `pipeline`, concurrency key fissa: una pipeline alla volta)
-
-Task:
-
-- `gatePipeline` (gating 48–72h via `PIPELINE_MIN_HOURS` / `PIPELINE_MAX_HOURS`)
-- `scrapeSources` (RSS/sitemap preferiti, HTML parsing come default; rate limit per dominio)
-- `generateDraft` (Gemini/OpenAI; salva su `drafts` in `ready`)
-- `publishPost` (crea `posts` in `draft` o `published` se `AUTO_PUBLISH=true`)
-
-Stato governance:
-
-- `sources.status`: `queued | processed | rejected`
-- `drafts.status`: `draft | ready | rejected`
-
-Audit run:
-
-- Collection `automationRuns` con `runId`, `status`, `startedAt`, `finishedAt`, `stats`.
-
-## Sicurezza trigger
-
-Endpoint: `POST /api/internal/run-pipeline`
-
-- Richiede header `x-cron-secret` uguale a `CRON_SECRET`.
-- Risponde JSON `{ runId, jobId }`.
-
-## Render deploy
-
-Questo repo include `render.yaml` (Blueprint) con:
-
-- Web Service: `npm run start`
-- Background Worker: `npm run worker`
-- Cron Job: giornaliero (esegue `npm run trigger:pipeline`)
-
-Env vars richieste su Render:
-
-- `DATABASE_URL`
-- `PAYLOAD_SECRET`
-- `LLM_PROVIDER` (es. `gemini`)
-- `GEMINI_API_KEY` (se `LLM_PROVIDER=gemini`)
-- `OPENAI_API_KEY` (se `LLM_PROVIDER=openai`)
-- `CRON_SECRET`
-- `PIPELINE_MIN_HOURS` (default 48)
-- `PIPELINE_MAX_HOURS` (default 72)
-- `AUTO_PUBLISH` (default false)
-- `PIPELINE_TRIGGER_URL` (URL pubblico del Web Service, es. `https://<name>.onrender.com`)
-
-Note:
-
-- Il cron in `render.yaml` usa `PIPELINE_TRIGGER_URL` per chiamare il tuo Web Service.
-- Il worker deve essere attivo per processare i job.
-
-## Verifica end-to-end
-
-1) `npm run dev`
-2) `npm run worker`
-3) `npm run trigger:pipeline`
-4) Controlla in Admin:
-
-- `sources`: nuovi record in `queued/processed`
-- `drafts`: nuovi record `ready`
-- `posts`: creati in `draft` o `published` (in base a `AUTO_PUBLISH`)
-
-5) Verifica API pubblica:
-
-```bash
-curl "http://localhost:3000/api/posts?where[status][equals]=published&sort=-publishedAt&limit=10&page=1"
-```
+- Vedi `sources.rejected` con errore LLM: controlla `GEMINI_API_KEY`/`GEMINI_MODEL` e riavvia worker
+- `posts` vuoto ma `drafts` pieno: controlla `AUTO_PUBLISH` (in ogni caso i post sono creati come draft)
+- `queued: 0` nello scrape: spesso e' dedup (URL gia' presenti) o insert fallito; guarda i log `article_failed`
